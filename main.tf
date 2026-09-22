@@ -3,8 +3,8 @@ resource "aws_security_group" "interface_endpoints" {
   description = "Accepts TLS only from the sandbox VPC to AWS PrivateLink endpoints."
   vpc_id      = var.vpc_id
 
-  ingress = []
-  egress  = []
+  # The standalone rule below is the single owner of endpoint ingress.
+  egress = []
 
   tags = merge(local.common_tags, {
     Name = "${var.name}-interface-endpoints"
