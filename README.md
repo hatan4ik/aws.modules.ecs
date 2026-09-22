@@ -49,6 +49,7 @@ or multi-Region resource.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_additional_cloudwatch_log_group_arns"></a> [additional\_cloudwatch\_log\_group\_arns](#input\_additional\_cloudwatch\_log\_group\_arns) | Additional CloudWatch Logs encryption-context ARNs that may use the application data key, such as private workload service log groups. | `set(string)` | `[]` | no |
 | <a name="input_gateway_endpoint_services"></a> [gateway\_endpoint\_services](#input\_gateway\_endpoint\_services) | AWS gateway service suffixes associated with private route tables. | `set(string)` | n/a | yes |
 | <a name="input_interface_endpoint_services"></a> [interface\_endpoint\_services](#input\_interface\_endpoint\_services) | AWS service suffixes exposed privately to future ECS tasks. | `set(string)` | n/a | yes |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | CloudWatch log retention for the future application task log group. | `number` | n/a | yes |
