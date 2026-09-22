@@ -56,6 +56,18 @@ variable "log_retention_in_days" {
   nullable    = false
 }
 
+variable "additional_cloudwatch_log_group_arns" {
+  description = "Additional CloudWatch Logs encryption-context ARNs that may use the application data key, such as private workload service log groups."
+  type        = set(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for log_group_arn in var.additional_cloudwatch_log_group_arns : can(regex("^arn:[^:]+:logs:[^:]+:[0-9]{12}:log-group:/aws/ecs/.+", log_group_arn))])
+    error_message = "additional_cloudwatch_log_group_arns must contain only CloudWatch Logs ARNs beneath /aws/ecs/."
+  }
+}
+
 variable "tags" {
   description = "Mandatory resource ownership and allocation tags."
   type        = map(string)

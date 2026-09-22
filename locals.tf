@@ -44,7 +44,10 @@ locals {
         Principal = { Service = "logs.${data.aws_region.current.region}.amazonaws.com" }
         Condition = {
           ArnEquals = {
-            "kms:EncryptionContext:aws:logs:arn" = local.application_log_group_arn
+            "kms:EncryptionContext:aws:logs:arn" = concat(
+              [local.application_log_group_arn],
+              tolist(var.additional_cloudwatch_log_group_arns),
+            )
           }
         }
       },

@@ -1,4 +1,16 @@
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_data "aws_caller_identity" {
+    defaults = {
+      account_id = "000000000000"
+    }
+  }
+
+  mock_data "aws_region" {
+    defaults = {
+      region = "us-east-2"
+    }
+  }
+}
 
 variables {
   name                    = "sandbox-platform-dev"
@@ -50,5 +62,31 @@ run "plans_private_native_service_foundation" {
   assert {
     condition     = anytrue([for setting in aws_ecs_cluster.application.setting : setting.name == "containerInsights" && setting.value == "enhanced"])
     error_message = "The ECS cluster must enable enhanced Container Insights."
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(local.data_key_policy).Statement[1].Condition.ArnEquals["kms:EncryptionContext:aws:logs:arn"],
+      "arn:aws:logs:us-east-2:000000000000:log-group:/aws/ecs/sandbox-platform-dev/application",
+    )
+    error_message = "The platform application log group must remain authorized to use the application data key."
+  }
+}
+
+run "permits_declared_private_workload_logs_only" {
+  command = plan
+
+  variables {
+    additional_cloudwatch_log_group_arns = [
+      "arn:aws:logs:us-east-2:000000000000:log-group:/aws/ecs/sandbox-workload-dev/*",
+    ]
+  }
+
+  assert {
+    condition = contains(
+      jsondecode(local.data_key_policy).Statement[1].Condition.ArnEquals["kms:EncryptionContext:aws:logs:arn"],
+      "arn:aws:logs:us-east-2:000000000000:log-group:/aws/ecs/sandbox-workload-dev/*",
+    )
+    error_message = "Only the caller-declared private workload log-group ARN may be added to the CloudWatch Logs KMS policy condition."
   }
 }
