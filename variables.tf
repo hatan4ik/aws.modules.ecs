@@ -63,6 +63,13 @@ variable "gateway_endpoint_services" {
   nullable    = false
 }
 
+variable "interface_endpoint_security_group_description" {
+  description = "Description of the shared interface-endpoint security group. AWS security group descriptions are immutable, so a caller migrating an existing security group onto this module must override this to match the live description exactly, or the group will be replaced."
+  type        = string
+  default     = "Accepts TLS only from the platform VPC to AWS PrivateLink endpoints."
+  nullable    = false
+}
+
 variable "log_retention_in_days" {
   description = "CloudWatch log retention for the application log group."
   type        = number

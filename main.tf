@@ -72,7 +72,7 @@ module "endpoints" {
   vpc_id                     = var.vpc_id
   name                       = var.name
   vpc_cidr_blocks            = [var.vpc_cidr]
-  security_group_description = "Accepts TLS only from the platform VPC to AWS PrivateLink endpoints."
+  security_group_description = var.interface_endpoint_security_group_description
   tags                       = local.common_tags
 
   interface_endpoints = {
