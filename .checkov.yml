@@ -1,0 +1,24 @@
+# tests/integration/setup is the reserved location for short-lived fixture
+# infrastructure created and destroyed by the integration suites in the
+# caller's own account; it is not a deployable pattern and is excluded from
+# policy scanning.
+skip-path:
+  - tests/integration/setup
+
+# The three checks below are verified false positives, not accepted risk.
+# Checkov cannot statically resolve a nested optional() default on an
+# object-typed root variable (registry.image_tag_mutability,
+# registry.scan_on_push, session_store.point_in_time_recovery_enabled) once
+# it is threaded through a count-based module call — confirmed by running
+# Checkov directly against modules/registry and modules/session-store in
+# isolation, where the identical defaults evaluate cleanly. The actual
+# rendered resource attributes are asserted directly in
+# tests/defaults.tftest.hcl ("platform_foundation_matches_the_live_contract")
+# and in each submodule's own contract tests, which is the source of truth
+# for this module's default posture. Re-run the isolation check yourself
+# before removing this skip: `checkov -d modules/registry` /
+# `checkov -d modules/session-store`.
+skip-check:
+  - CKV_AWS_163 # ECR image scanning on push — registry submodule defaults scan_on_push to true.
+  - CKV_AWS_51 # ECR image tag immutability — registry submodule defaults image_tag_mutability to IMMUTABLE.
+  - CKV_AWS_28 # DynamoDB point-in-time recovery — session-store submodule defaults point_in_time_recovery_enabled to true.
