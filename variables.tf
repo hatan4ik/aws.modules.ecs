@@ -22,9 +22,14 @@ variable "vpc_id" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR of the existing VPC, used to limit endpoint ingress."
+  description = "IPv4 CIDR of the existing VPC, used to limit endpoint ingress."
   type        = string
   nullable    = false
+
+  validation {
+    condition     = can(cidrnetmask(var.vpc_cidr)) && try(cidrsubnet(var.vpc_cidr, 0, 0) == var.vpc_cidr, false)
+    error_message = "vpc_cidr must be an IPv4 network CIDR in canonical form, for example 10.0.0.0/16 (not a host address such as 10.0.0.1/16)."
+  }
 }
 
 variable "private_subnet_ids" {
@@ -121,6 +126,11 @@ variable "execute_command_logging" {
   description = "When set, encrypts and directs ECS Exec session output to this CloudWatch log group name using the platform's shared data key. Null uses the AWS default (session output not centrally logged)."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.execute_command_logging == null ? true : can(regex("^[A-Za-z0-9._/#-]{1,512}$", var.execute_command_logging))
+    error_message = "execute_command_logging must be a CloudWatch Logs log group name: 1-512 characters of letters, digits, '.', '-', '_', '/', or '#'."
+  }
 }
 
 variable "fargate_ephemeral_storage_kms_key_arn" {
@@ -141,19 +151,28 @@ variable "create_registry" {
   nullable    = false
 }
 
+# Defaults for registry and session_store attributes are owned by the
+# submodules (modules/registry, modules/session-store): an attribute left
+# unset here is passed through as null, and the submodule's non-nullable
+# variable then applies its own default. The only defaults declared here are
+# for submodule inputs where null is itself meaningful (lifecycle_policy,
+# range_key, ttl_attribute_name, where null disables the feature), because a
+# pass-through null would change the default behavior rather than inherit it.
+
 variable "registry" {
-  description = "Container registry settings, used when create_registry is true."
+  description = "Container registry settings, used when create_registry is true. Unset attributes take modules/registry's defaults. Null is treated as {} (all defaults); use create_registry = false to skip the registry."
   type = object({
-    image_tag_mutability            = optional(string, "IMMUTABLE")
-    image_tag_mutability_exclusions = optional(set(string), [])
-    scan_on_push                    = optional(bool, true)
-    force_delete                    = optional(bool, false)
+    image_tag_mutability            = optional(string)
+    image_tag_mutability_exclusions = optional(set(string))
+    scan_on_push                    = optional(bool)
+    force_delete                    = optional(bool)
     lifecycle_policy = optional(object({
       retain_image_count         = optional(number)
       untagged_image_expiry_days = optional(number)
     }), { retain_image_count = 30 })
   })
-  default = {}
+  default  = {}
+  nullable = false
 }
 
 variable "create_session_store" {
@@ -164,18 +183,19 @@ variable "create_session_store" {
 }
 
 variable "session_store" {
-  description = "Session-store table settings, used when create_session_store is true."
+  description = "Session-store table settings, used when create_session_store is true. Unset attributes take modules/session-store's defaults. Null is treated as {} (all defaults); use create_session_store = false to skip the table."
   type = object({
-    hash_key                       = optional(string, "pk")
+    hash_key                       = optional(string)
     range_key                      = optional(string, "sk")
-    billing_mode                   = optional(string, "PAY_PER_REQUEST")
+    billing_mode                   = optional(string)
     read_capacity                  = optional(number)
     write_capacity                 = optional(number)
     ttl_attribute_name             = optional(string, "expires_at")
-    point_in_time_recovery_enabled = optional(bool, true)
-    deletion_protection_enabled    = optional(bool, true)
+    point_in_time_recovery_enabled = optional(bool)
+    deletion_protection_enabled    = optional(bool)
   })
-  default = {}
+  default  = {}
+  nullable = false
 }
 
 variable "tags" {

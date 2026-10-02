@@ -6,7 +6,7 @@ mock_provider "aws" {
     defaults = { account_id = "123456789012" }
   }
   mock_data "aws_partition" {
-    defaults = { partition = "aws" }
+    defaults = { partition = "aws", dns_suffix = "amazonaws.com" }
   }
 }
 
@@ -100,4 +100,74 @@ run "rejects_additional_log_group_arn_outside_ecs_namespace" {
     additional_cloudwatch_log_group_arns = ["arn:aws:logs:us-east-2:123456789012:log-group:/aws/lambda/other"]
   }
   expect_failures = [var.additional_cloudwatch_log_group_arns]
+}
+
+run "null_registry_and_session_store_fall_back_to_defaults" {
+  command = plan
+
+  variables {
+    registry      = null
+    session_store = null
+  }
+
+  assert {
+    condition     = module.registry[0].repository_name == "orders-platform-application" && module.session_store[0].name == "orders-platform-session"
+    error_message = "A null registry or session_store must be treated as {} (submodule defaults), not crash the plan."
+  }
+}
+
+run "null_settings_with_disabled_submodules_create_nothing" {
+  command = plan
+
+  variables {
+    registry             = null
+    session_store        = null
+    create_registry      = false
+    create_session_store = false
+  }
+
+  assert {
+    condition     = length(module.registry) == 0 && length(module.session_store) == 0
+    error_message = "create_registry/create_session_store, not a null settings object, is what disables a submodule."
+  }
+}
+
+run "rejects_vpc_cidr_that_is_not_a_cidr" {
+  command = plan
+  variables {
+    vpc_cidr = "vpc-0123456789abcdef0"
+  }
+  expect_failures = [var.vpc_cidr]
+}
+
+run "rejects_vpc_cidr_with_host_bits_set" {
+  command = plan
+  variables {
+    vpc_cidr = "10.0.0.1/16"
+  }
+  expect_failures = [var.vpc_cidr]
+}
+
+run "rejects_ipv6_vpc_cidr" {
+  command = plan
+  variables {
+    vpc_cidr = "2600:1f18::/56"
+  }
+  expect_failures = [var.vpc_cidr]
+}
+
+run "rejects_invalid_execute_command_log_group_name" {
+  command = plan
+  variables {
+    execute_command_logging = "/aws/ecs/orders platform/exec"
+  }
+  expect_failures = [var.execute_command_logging]
+}
+
+run "rejects_empty_execute_command_log_group_name" {
+  command = plan
+  variables {
+    execute_command_logging = ""
+  }
+  expect_failures = [var.execute_command_logging]
 }
