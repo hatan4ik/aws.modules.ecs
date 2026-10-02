@@ -1,6 +1,6 @@
 # aws.modules.ecs
 
-Provisions the ECS platform foundation for one private, single-account environment: an ECS cluster, a customer-managed KMS key shared by the platform's encrypted data, an application CloudWatch log group, private VPC endpoints for the AWS services future tasks need (composed from `aws.modules.vpc//modules/endpoints`), and, as focused, independently-substitutable submodules, a container registry (`modules/registry`) and a session store (`modules/session-store`). It creates no task, no application, and no identity provider: a caller that needs Cognito creates `aws.modules.cognito` beside this module, exactly as `aws.modules.ecs-service`'s callers already do. Secure by default and explicit by declaration, with every managed helper resource replaceable by a caller-supplied one. Requires Terraform >= 1.7 and the AWS provider >= 6.35, < 7.
+Provisions the ECS platform foundation for one private, single-account environment: an ECS cluster, a customer-managed KMS key shared by the platform's encrypted data, an application CloudWatch log group, private VPC endpoints for the AWS services future tasks need (composed from `aws.modules.vpc//modules/endpoints`), and, as focused, independently-substitutable submodules, a container registry (`modules/registry`) and a session store (`modules/session-store`). It creates no task, no application, and no identity provider: a caller that needs Cognito creates `aws.modules.cognito` beside this module, exactly as `aws.modules.ecs-service`'s callers already do. Secure by default and explicit by declaration. The registry and the session table can each be turned off (`create_registry = false`, `create_session_store = false`) and supplied by the caller instead; the KMS key, the application log group, the cluster, and the interface-endpoint security group are always created by this module and have no bring-your-own input. Requires Terraform >= 1.7 and the AWS provider >= 6.35, < 7.
 
 ## Why this module
 
@@ -10,7 +10,7 @@ What you get from `name`, an existing VPC, and two private subnets, without sett
 - Private AWS service access without a NAT gateway. `interface_endpoint_services` and `gateway_endpoint_services` are AWS service suffixes (`ecr.api`, `logs`, `s3`, ...); the module builds the full `com.amazonaws.<region>.<suffix>` name and composes `aws.modules.vpc//modules/endpoints`, pinned by commit SHA, instead of reimplementing endpoints a second time.
 - A tunable ECS cluster. Container Insights (`enhanced` by default, with an advisory check when it is turned off), optional encrypted, centrally logged ECS Exec sessions, and an optional caller-managed key for Fargate ephemeral storage, all typed inputs instead of hard-coded choices.
 - An immutable, scanned container registry and an encrypted, recoverable session table, each a focused submodule with its own contract tests, each independently substitutable: set `create_registry = false` or `create_session_store = false` and supply your own elsewhere.
-- Compatibility outputs. `application` and `private_endpoints` keep the v0.x output shape (minus the removed `user_pool` key), so a caller migrating from v0.x can adopt the new flat outputs at its own pace.
+- Compatibility outputs. `application` and `private_endpoints` keep the v0.x output shape (minus the removed `user_pool` key), so a caller migrating from v0.x can adopt the new flat outputs at its own pace. They are deprecated and will be removed in v2.0.0; read the flat outputs instead.
 - Plan-time validation of every input, and two advisory `check` blocks that warn without blocking: Container Insights disabled, and no endpoints declared at all.
 - Only a `Name` (and, on data resources, `DataClass`) tag is added; caller tags in `tags` are never overridden.
 
@@ -70,7 +70,7 @@ Identity is not created here. A caller who needs Cognito (as the live sandbox pl
 Data at rest
 
 - The application log group, the registry, and the session table are all encrypted with one customer-managed KMS key (`application_data_kms_key_arn`), never the AWS-managed default. `enable_key_rotation` is always on.
-- The key's policy grants CloudWatch Logs `kms:Encrypt`/`kms:Decrypt`/`kms:GenerateDataKey*` only for the application log group's own ARN, the ECS Exec log group's ARN when `execute_command_logging` is set, and any ARNs listed in `additional_cloudwatch_log_group_arns`; it grants DynamoDB and ECR the same actions unconditionally, since neither service scopes an encryption context to a resource ARN the way CloudWatch Logs does.
+- The key's policy grants CloudWatch Logs `kms:Encrypt`/`kms:Decrypt`/`kms:GenerateDataKey*` only for the application log group's own ARN, the ECS Exec log group's ARN when `execute_command_logging` is set, and any ARNs listed in `additional_cloudwatch_log_group_arns`; it grants the DynamoDB and ECR service principals the same actions (plus `kms:CreateGrant`) without a resource-ARN condition, since neither service scopes an encryption context to a resource ARN the way CloudWatch Logs does, but with a `StringEqualsIfExists` condition on `aws:SourceAccount` so that a request either service makes on behalf of a resource in another account is refused (confused-deputy protection). `IfExists` keeps service-internal calls that carry no source account, such as DynamoDB's periodic key-accessibility check, working.
 
 Network
 
@@ -81,6 +81,13 @@ Registry and session table
 
 - The ECR repository defaults to `IMMUTABLE` tags and `scan_on_push = true`; the DynamoDB table defaults to point-in-time recovery and deletion protection both on. `.checkov.yml` documents why static analysis cannot always see these defaults through the count-based module calls that thread them, and how that was verified.
 - `force_delete` on the registry and `deletion_protection_enabled` on the table both default to the safe (production) choice; disable them deliberately, such as in an integration suite that must tear itself down.
+- Each registry and session-table default is owned by its submodule (`modules/registry/variables.tf`, `modules/session-store/variables.tf`): an attribute left unset in `registry` or `session_store` is passed through as null and the submodule's own default applies. The root declares a default only for `registry.lifecycle_policy`, `session_store.range_key`, and `session_store.ttl_attribute_name`, where the submodule treats null as "disabled".
+- Passing `registry = null` or `session_store = null` is the same as `{}` (every default). Only `create_registry = false` / `create_session_store = false` skips a submodule.
+
+Registry retention and digest-pinned deployments
+
+- The default lifecycle policy keeps the newest 30 images of any tag status (`tagStatus = "any"`) and expires the rest. `aws.modules.ecs-service` defaults to `require_image_digest = true`, so running tasks pin an image by digest. Once 30 newer images have been pushed, the digest a running service still uses can be expired: the running tasks keep working, but any replacement, scale-out, or redeploy of that revision fails with `CannotPullContainerError`, and a deployment circuit-breaker rollback to an equally old revision fails the same way.
+- If you push often or deploy rarely, either raise `registry.lifecycle_policy.retain_image_count` well above the number of images pushed between production deployments, or replace the count rule with rules that never select deployed images, for example by tagging deployed images with a protected prefix (such as `release-`) and expiring only other prefixes and untagged images, in a policy you manage yourself with `registry.lifecycle_policy = { retain_image_count = null, untagged_image_expiry_days = null }` (which creates no policy from this module).
 
 Not created here
 
@@ -93,6 +100,12 @@ Not created here
 - `interface_endpoint_services` and `gateway_endpoint_services` are sets, so an endpoint's `for_each` key is the service suffix itself; adding or removing a suffix adds or removes exactly one endpoint without disturbing the others.
 - The application log group's name (`/aws/ecs/<name>/application`) and the compatibility outputs' shapes are stable; `execute_command_logging`'s log group is named by you and not created by this module (the ECS Exec configuration only references the name).
 - Two `check` blocks warn without blocking: `container_insights_disabled` (Container Insights turned off) and `no_endpoints_declared` (neither interface nor gateway endpoints declared, meaning future tasks in private subnets need a NAT gateway or another egress path).
+
+## Partition support
+
+- Every ARN the module builds (the key policy's root principal and the CloudWatch Logs encryption-context ARNs) and the CloudWatch Logs service principal (`logs.<region>.<dns suffix>`) are derived from the `aws_partition` data source, so the key policy is correct in `aws`, `aws-us-gov`, and `aws-cn`.
+- VPC endpoint service names are always built as `com.amazonaws.<region>.<suffix>`. That is correct in `aws` and `aws-us-gov`. In `aws-cn` some services use `cn.com.amazonaws.<region>.<suffix>` instead, and the composed `aws.modules.vpc//modules/endpoints` (v1.0.1) accepts only `com.amazonaws.*` service names, so in `aws-cn` declare only the endpoint suffixes whose service name starts with `com.amazonaws` (check `aws ec2 describe-vpc-endpoint-services`), and create any others outside this module.
+- The DynamoDB and ECR service principals are written as `dynamodb.amazonaws.com` and `ecr.amazonaws.com` and are not varied by partition. Callers' own IAM principals reach the key through the account-root statement in every partition, so this does not block use of the table or registry.
 
 ## Testing
 
@@ -116,7 +129,7 @@ The full rationale, including why the v0.x design (an embedded Cognito pool pinn
 - Terraform `>= 1.7.0, < 2.0.0`. AWS provider `>= 6.35.0, < 7.0.0`.
 - One platform foundation per module call, for one VPC, in one account and region. Multiple environments are multiple module calls.
 - No task, no application, no public listener, no identity provider. Identity is `aws.modules.cognito`; a running service is `aws.modules.ecs-service`; the VPC and its endpoints besides the ones composed here are `aws.modules.vpc`.
-- Nothing in the v1 interface is scheduled to change. Additions arrive as optional inputs and outputs.
+- The compatibility outputs `application` and `private_endpoints` are deprecated and will be removed in v2.0.0. Nothing else in the v1 interface is scheduled to change. Additions arrive as optional inputs and outputs.
 
 ## Versioning and releases
 
@@ -204,17 +217,17 @@ Apache-2.0. See [LICENSE](LICENSE).
 | <a name="input_private_route_table_ids"></a> [private\_route\_table\_ids](#input\_private\_route\_table\_ids) | Route tables for the existing private subnets; gateway endpoints are associated only here. | `set(string)` | n/a | yes |
 | <a name="input_private_subnet_ids"></a> [private\_subnet\_ids](#input\_private\_subnet\_ids) | At least two existing private subnet IDs, one per Availability Zone. | `set(string)` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | Region used to build AWS service endpoint names. Resolved from the provider when null. | `string` | `null` | no |
-| <a name="input_registry"></a> [registry](#input\_registry) | Container registry settings, used when create\_registry is true. | <pre>object({<br/>    image_tag_mutability            = optional(string, "IMMUTABLE")<br/>    image_tag_mutability_exclusions = optional(set(string), [])<br/>    scan_on_push                    = optional(bool, true)<br/>    force_delete                    = optional(bool, false)<br/>    lifecycle_policy = optional(object({<br/>      retain_image_count         = optional(number)<br/>      untagged_image_expiry_days = optional(number)<br/>    }), { retain_image_count = 30 })<br/>  })</pre> | `{}` | no |
-| <a name="input_session_store"></a> [session\_store](#input\_session\_store) | Session-store table settings, used when create\_session\_store is true. | <pre>object({<br/>    hash_key                       = optional(string, "pk")<br/>    range_key                      = optional(string, "sk")<br/>    billing_mode                   = optional(string, "PAY_PER_REQUEST")<br/>    read_capacity                  = optional(number)<br/>    write_capacity                 = optional(number)<br/>    ttl_attribute_name             = optional(string, "expires_at")<br/>    point_in_time_recovery_enabled = optional(bool, true)<br/>    deletion_protection_enabled    = optional(bool, true)<br/>  })</pre> | `{}` | no |
+| <a name="input_registry"></a> [registry](#input\_registry) | Container registry settings, used when create\_registry is true. Unset attributes take modules/registry's defaults. Null is treated as {} (all defaults); use create\_registry = false to skip the registry. | <pre>object({<br/>    image_tag_mutability            = optional(string)<br/>    image_tag_mutability_exclusions = optional(set(string))<br/>    scan_on_push                    = optional(bool)<br/>    force_delete                    = optional(bool)<br/>    lifecycle_policy = optional(object({<br/>      retain_image_count         = optional(number)<br/>      untagged_image_expiry_days = optional(number)<br/>    }), { retain_image_count = 30 })<br/>  })</pre> | `{}` | no |
+| <a name="input_session_store"></a> [session\_store](#input\_session\_store) | Session-store table settings, used when create\_session\_store is true. Unset attributes take modules/session-store's defaults. Null is treated as {} (all defaults); use create\_session\_store = false to skip the table. | <pre>object({<br/>    hash_key                       = optional(string)<br/>    range_key                      = optional(string, "sk")<br/>    billing_mode                   = optional(string)<br/>    read_capacity                  = optional(number)<br/>    write_capacity                 = optional(number)<br/>    ttl_attribute_name             = optional(string, "expires_at")<br/>    point_in_time_recovery_enabled = optional(bool)<br/>    deletion_protection_enabled    = optional(bool)<br/>  })</pre> | `{}` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Mandatory resource ownership and allocation tags. | `map(string)` | n/a | yes |
-| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR of the existing VPC, used to limit endpoint ingress. | `string` | n/a | yes |
+| <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | IPv4 CIDR of the existing VPC, used to limit endpoint ingress. | `string` | n/a | yes |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | Existing VPC that hosts private endpoints. | `string` | n/a | yes |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| <a name="output_application"></a> [application](#output\_application) | Non-secret application platform identifiers in the v0.x shape, minus the identity provider (create aws.modules.cognito separately). |
+| <a name="output_application"></a> [application](#output\_application) | Deprecated, removed in v2.0.0: use cluster\_arn, application\_log\_group\_name, application\_data\_kms\_key\_arn, registry, and session\_store. Non-secret application platform identifiers in the v0.x shape, minus the identity provider (create aws.modules.cognito separately). |
 | <a name="output_application_data_kms_key_arn"></a> [application\_data\_kms\_key\_arn](#output\_application\_data\_kms\_key\_arn) | ARN of the shared application-data KMS key. |
 | <a name="output_application_log_group_arn"></a> [application\_log\_group\_arn](#output\_application\_log\_group\_arn) | Application CloudWatch log group ARN. |
 | <a name="output_application_log_group_name"></a> [application\_log\_group\_name](#output\_application\_log\_group\_name) | Application CloudWatch log group name. |
@@ -223,7 +236,7 @@ Apache-2.0. See [LICENSE](LICENSE).
 | <a name="output_endpoint_security_group_id"></a> [endpoint\_security\_group\_id](#output\_endpoint\_security\_group\_id) | Security group ID shared by every interface endpoint. |
 | <a name="output_gateway_endpoint_ids"></a> [gateway\_endpoint\_ids](#output\_gateway\_endpoint\_ids) | Gateway endpoint IDs keyed by service suffix. |
 | <a name="output_interface_endpoint_ids"></a> [interface\_endpoint\_ids](#output\_interface\_endpoint\_ids) | Interface endpoint IDs keyed by service suffix. |
-| <a name="output_private_endpoints"></a> [private\_endpoints](#output\_private\_endpoints) | Private AWS service endpoints in the v0.x shape. |
+| <a name="output_private_endpoints"></a> [private\_endpoints](#output\_private\_endpoints) | Deprecated, removed in v2.0.0: use interface\_endpoint\_ids and gateway\_endpoint\_ids. Private AWS service endpoints in the v0.x shape. |
 | <a name="output_registry"></a> [registry](#output\_registry) | Container registry identifiers, or null when create\_registry is false. |
 | <a name="output_session_store"></a> [session\_store](#output\_session\_store) | Session-store table identifiers, or null when create\_session\_store is false. |
 <!-- END_TF_DOCS -->
