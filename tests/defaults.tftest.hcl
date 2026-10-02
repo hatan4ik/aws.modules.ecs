@@ -6,7 +6,7 @@ mock_provider "aws" {
     defaults = { account_id = "448871779014" }
   }
   mock_data "aws_partition" {
-    defaults = { partition = "aws" }
+    defaults = { partition = "aws", dns_suffix = "amazonaws.com" }
   }
   mock_resource "aws_kms_key" {
     defaults = { arn = "arn:aws:kms:us-east-2:448871779014:key/11111111-1111-1111-1111-111111111111" }
@@ -43,6 +43,11 @@ run "platform_foundation_matches_the_live_contract" {
   assert {
     condition     = jsondecode(aws_kms_key.application_data.policy).Statement[0].Principal.AWS == "arn:aws:iam::448871779014:root" && jsondecode(aws_kms_key.application_data.policy).Statement[1].Principal.Service == "logs.us-east-2.amazonaws.com" && contains(jsondecode(aws_kms_key.application_data.policy).Statement[1].Condition.ArnEquals["kms:EncryptionContext:aws:logs:arn"], "arn:aws:logs:us-east-2:448871779014:log-group:/aws/ecs/sandbox-platform-dev/application")
     error_message = "The key policy must scope CloudWatch Logs to the application log group and keep root administration."
+  }
+
+  assert {
+    condition     = jsondecode(aws_kms_key.application_data.policy).Statement[2].Condition.StringEqualsIfExists["aws:SourceAccount"] == "448871779014"
+    error_message = "The DynamoDB/ECR service-principal grant must be scoped to this account through aws:SourceAccount."
   }
 
   assert {

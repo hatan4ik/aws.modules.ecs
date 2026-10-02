@@ -90,6 +90,14 @@ module "endpoints" {
   }
 }
 
+# Trivy cannot evaluate a submodule's non-nullable variable default when the
+# root passes an unset optional() attribute (null) through, so it reports
+# scan_on_push and image_tag_mutability as unset here. modules/registry
+# defaults them to true and IMMUTABLE and is scanned on its own, where the
+# defaults evaluate cleanly; the rendered values are asserted by a real plan
+# (see .checkov.yml for the identical Checkov limitation).
+#trivy:ignore:AVD-AWS-0030
+#trivy:ignore:AVD-AWS-0031
 module "registry" {
   source = "./modules/registry"
   count  = var.create_registry ? 1 : 0
