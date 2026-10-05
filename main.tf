@@ -67,10 +67,7 @@ resource "aws_ecs_cluster" "this" {
 }
 
 module "endpoints" {
-  # TEMPORARY: pins an unmerged commit (895f8ea) of aws.modules.vpc's
-  # fix/audit-findings branch. Re-pin to the released tag's commit once that
-  # branch is merged and tagged; do not release this module on this pin.
-  source = "git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints?ref=895f8ea1f9a10bfddfbcd3673bf05146a68a8ef6" # TEMPORARY, unreleased
+  source = "git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints?ref=969e78e0653ec54a6985fd93f9ca23345bd0b84a" # v1.1.0
 
   # From this pin on, modules/endpoints provisions the group through
   # aws.modules.security-group and carries its own moved blocks from the

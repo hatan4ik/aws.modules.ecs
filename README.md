@@ -182,7 +182,7 @@ Apache-2.0. See [LICENSE](LICENSE).
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_endpoints"></a> [endpoints](#module\_endpoints) | git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints | 895f8ea1f9a10bfddfbcd3673bf05146a68a8ef6 |
+| <a name="module_endpoints"></a> [endpoints](#module\_endpoints) | git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints | 969e78e0653ec54a6985fd93f9ca23345bd0b84a |
 | <a name="module_registry"></a> [registry](#module\_registry) | ./modules/registry | n/a |
 | <a name="module_session_store"></a> [session\_store](#module\_session\_store) | ./modules/session-store | n/a |
 
