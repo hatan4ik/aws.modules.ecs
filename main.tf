@@ -67,7 +67,19 @@ resource "aws_ecs_cluster" "this" {
 }
 
 module "endpoints" {
-  source = "git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints?ref=abfd14dfdc288a8fbaa23083a0fa6ee666e7d4f6" # v1.0.1
+  # TEMPORARY: pins an unmerged commit (895f8ea) of aws.modules.vpc's
+  # fix/audit-findings branch. Re-pin to the released tag's commit once that
+  # branch is merged and tagged; do not release this module on this pin.
+  source = "git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints?ref=895f8ea1f9a10bfddfbcd3673bf05146a68a8ef6" # TEMPORARY, unreleased
+
+  # From this pin on, modules/endpoints provisions the group through
+  # aws.modules.security-group and carries its own moved blocks from the
+  # v1.0.1 addresses, so no moved block is needed here. Its
+  # create_security_group default also changed to "only when interface
+  # endpoints exist"; true keeps this module's v1.0 contract (the group always
+  # exists and endpoint_security_group_id is never null) and keeps a caller
+  # with no interface endpoints from having its existing group destroyed.
+  create_security_group = true
 
   vpc_id                     = var.vpc_id
   name                       = var.name
