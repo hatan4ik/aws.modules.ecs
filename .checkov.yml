@@ -6,11 +6,12 @@ skip-path:
   - tests/integration/setup
 
 # The four checks below are verified false positives, not accepted risk.
-# Checkov cannot statically resolve a nested optional() default on an
-# object-typed root variable (registry.image_tag_mutability,
+# Checkov cannot statically resolve a submodule variable's default when the
+# root threads it through a count-based module call from an object-typed
+# root variable whose attribute is an unset optional() (registry.image_tag_mutability,
 # registry.scan_on_push, session_store.point_in_time_recovery_enabled,
-# session_store.billing_mode) once it is threaded through a count-based
-# module call — confirmed by running Checkov directly against
+# session_store.billing_mode; the defaults themselves are owned by the
+# submodules' variables) — confirmed by running Checkov directly against
 # modules/registry and modules/session-store in isolation, where the
 # identical defaults evaluate cleanly. The actual rendered resource
 # attributes are asserted directly in tests/defaults.tftest.hcl

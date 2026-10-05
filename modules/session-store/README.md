@@ -76,5 +76,4 @@ No modules.
 |------|-------------|
 | <a name="output_arn"></a> [arn](#output\_arn) | Table ARN. |
 | <a name="output_name"></a> [name](#output\_name) | Table name. |
-| <a name="output_stream_arn"></a> [stream\_arn](#output\_stream\_arn) | Stream ARN when a future version enables streams; null today. |
 <!-- END_TF_DOCS -->

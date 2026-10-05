@@ -59,9 +59,11 @@ output "session_store" {
 # keep reading `application.*` and `private_endpoints.*` while it adopts the
 # new flat outputs at its own pace. Identity (user_pool) is not produced here
 # in v1; the caller creates aws.modules.cognito itself.
+#
+# Deprecated: both are removed in v2.0.0. Read the flat outputs instead.
 
 output "private_endpoints" {
-  description = "Private AWS service endpoints in the v0.x shape."
+  description = "Deprecated, removed in v2.0.0: use interface_endpoint_ids and gateway_endpoint_ids. Private AWS service endpoints in the v0.x shape."
   value = {
     gateway   = module.endpoints.gateway_endpoint_ids
     interface = module.endpoints.interface_endpoint_ids
@@ -69,7 +71,7 @@ output "private_endpoints" {
 }
 
 output "application" {
-  description = "Non-secret application platform identifiers in the v0.x shape, minus the identity provider (create aws.modules.cognito separately)."
+  description = "Deprecated, removed in v2.0.0: use cluster_arn, application_log_group_name, application_data_kms_key_arn, registry, and session_store. Non-secret application platform identifiers in the v0.x shape, minus the identity provider (create aws.modules.cognito separately)."
   value = {
     ecr_repository_url = var.create_registry ? module.registry[0].repository_url : null
     ecs_cluster_arn    = aws_ecs_cluster.this.arn

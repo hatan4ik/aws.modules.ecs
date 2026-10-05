@@ -18,15 +18,24 @@ locals {
 
   execute_command_log_group_arn = var.execute_command_logging == null ? null : "arn:${data.aws_partition.current.partition}:logs:${local.region}:${data.aws_caller_identity.current.account_id}:log-group:${var.execute_command_logging}"
 
+  # VPC endpoint service names are deliberately NOT derived from the
+  # partition. "com.amazonaws" is correct in the aws and aws-us-gov
+  # partitions. aws-cn mixes "com.amazonaws.<region>.<service>" and
+  # "cn.com.amazonaws.<region>.<service>" per service, so no single
+  # partition-derived prefix is correct there, and the composed
+  # aws.modules.vpc//modules/endpoints (v1.0.1) only accepts com.amazonaws.*
+  # service names anyway. See "Partition support" in README.md.
+  endpoint_service_name_prefix = "com.amazonaws.${local.region}"
+
   interface_endpoints = {
     for service in var.interface_endpoint_services : service => {
-      service_name = "com.amazonaws.${local.region}.${service}"
+      service_name = "${local.endpoint_service_name_prefix}.${service}"
     }
   }
 
   gateway_endpoints = {
     for service in var.gateway_endpoint_services : service => {
-      service_name = "com.amazonaws.${local.region}.${service}"
+      service_name = "${local.endpoint_service_name_prefix}.${service}"
     }
   }
 
@@ -54,7 +63,7 @@ locals {
           "kms:ReEncrypt*",
         ]
         Resource  = "*"
-        Principal = { Service = "logs.${local.region}.amazonaws.com" }
+        Principal = { Service = "logs.${local.region}.${data.aws_partition.current.dns_suffix}" }
         Condition = {
           ArnEquals = {
             "kms:EncryptionContext:aws:logs:arn" = concat(
@@ -78,6 +87,18 @@ locals {
         ]
         Resource  = "*"
         Principal = { Service = ["dynamodb.amazonaws.com", "ecr.amazonaws.com"] }
+        # Confused-deputy guard: when DynamoDB or ECR acts on behalf of a
+        # resource, it identifies that resource's account in aws:SourceAccount,
+        # and a request on behalf of any other account is refused. IfExists,
+        # not StringEquals, because service-internal calls made outside a
+        # resource context (for example DynamoDB's periodic DescribeKey
+        # health check) may carry no aws:SourceAccount at all, and denying
+        # those would make the table's key appear inaccessible.
+        Condition = {
+          StringEqualsIfExists = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       },
     ]
   })
