@@ -28,6 +28,8 @@ root (one platform foundation)
 └── modules/session-store (optional, create_session_store)  DynamoDB session table
 ```
 
+The endpoint security group and its HTTPS ingress rule are provisioned inside `modules/endpoints` by `aws.modules.security-group`, the same primitive `aws.modules.alb` and `aws.modules.ecs-service` use, so this module does not carry a third copy. Its address is `module.endpoints.module.security_group.aws_security_group.this[0]`; `modules/endpoints` owns the `moved` blocks from the earlier inline `module.endpoints.aws_security_group.this[0]` address, so no `moved` block is needed here. `modules/endpoints` would by default create the group only when interface endpoints are declared; this module passes `create_security_group = true` so `endpoint_security_group_id` keeps its v1.0 guarantee of never being `null`.
+
 Identity is not created here. A caller who needs Cognito (as the live sandbox-platform root does today) creates `aws.modules.cognito` next to this module and passes the resulting pool ID to whatever consumes it — this is the exact pattern `aws.modules.ecs-service`'s callers already use.
 
 ## Interface (summary)
@@ -50,7 +52,7 @@ Each registry and session-table default has exactly one owner, the submodule tha
 
 ## Partition support
 
-ARNs and the CloudWatch Logs service principal are derived from `aws_partition` (`partition`, `dns_suffix`). VPC endpoint service names are deliberately not: `com.amazonaws.<region>.<suffix>` is correct in `aws` and `aws-us-gov`, while `aws-cn` mixes `com.amazonaws` and `cn.com.amazonaws` per service, so no single partition-derived prefix is right there, and the composed `aws.modules.vpc//modules/endpoints` (v1.0.1) accepts only `com.amazonaws.*` names. In `aws-cn`, only endpoint suffixes whose service name starts with `com.amazonaws` can be declared here.
+ARNs and the CloudWatch Logs service principal are derived from `aws_partition` (`partition`, `dns_suffix`). VPC endpoint service names are deliberately not: `com.amazonaws.<region>.<suffix>` is correct in `aws` and `aws-us-gov`, while `aws-cn` mixes `com.amazonaws` and `cn.com.amazonaws` per service, so no single partition-derived prefix is right there, and the composed `aws.modules.vpc//modules/endpoints` accepts only `com.amazonaws.*` names. In `aws-cn`, only endpoint suffixes whose service name starts with `com.amazonaws` can be declared here.
 
 ## Known operational interaction: ECR retention and digest pinning
 

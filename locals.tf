@@ -23,7 +23,7 @@ locals {
   # partitions. aws-cn mixes "com.amazonaws.<region>.<service>" and
   # "cn.com.amazonaws.<region>.<service>" per service, so no single
   # partition-derived prefix is correct there, and the composed
-  # aws.modules.vpc//modules/endpoints (v1.0.1) only accepts com.amazonaws.*
+  # aws.modules.vpc//modules/endpoints only accepts com.amazonaws.*
   # service names anyway. See "Partition support" in README.md.
   endpoint_service_name_prefix = "com.amazonaws.${local.region}"
 
