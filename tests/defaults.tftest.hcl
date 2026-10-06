@@ -90,3 +90,37 @@ run "warns_when_no_endpoints_are_declared" {
   }
   expect_failures = [check.no_endpoints_declared]
 }
+
+# aws.modules.vpc//modules/endpoints from 1.1.0 creates its security group
+# only when interface endpoints are declared, unless create_security_group is
+# set. This module sets it to true so the v1.0 contract holds: the group (and
+# endpoint_security_group_id) exists whatever endpoints are declared, and a
+# caller upgrading with no interface endpoints keeps its existing group
+# instead of having it destroyed.
+run "endpoint_security_group_exists_with_gateway_endpoints_only" {
+  command = apply
+  variables {
+    interface_endpoint_services = []
+    gateway_endpoint_services   = ["s3"]
+  }
+
+  assert {
+    condition     = output.endpoint_security_group_id != null && length(module.endpoints.security_group_ids) == 1
+    error_message = "The shared endpoint security group must be created even when no interface endpoint is declared."
+  }
+}
+
+run "endpoint_security_group_exists_with_no_endpoints" {
+  command = apply
+  variables {
+    interface_endpoint_services = []
+    gateway_endpoint_services   = []
+  }
+
+  assert {
+    condition     = output.endpoint_security_group_id != null && length(output.interface_endpoint_ids) == 0 && length(output.gateway_endpoint_ids) == 0
+    error_message = "The shared endpoint security group must be created even when no endpoint is declared."
+  }
+
+  expect_failures = [check.no_endpoints_declared]
+}

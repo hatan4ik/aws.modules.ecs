@@ -104,6 +104,8 @@ Old addresses are those of 0.1.2 under `module.platform` (replace with your own 
 | `module.platform.aws_dynamodb_table.session` | `module.platform.module.session_store[0].aws_dynamodb_table.this` |
 | `module.platform.module.cognito` | `module.cognito` (sibling of `module.platform`, in your own root; see above) |
 
+From the release that composes `modules/endpoints` through `aws.modules.security-group` (see the changelog), the security group and its rule live one level deeper, at `module.platform.module.endpoints.module.security_group.aws_security_group.this[0]` and `module.platform.module.endpoints.module.security_group.aws_vpc_security_group_ingress_rule.this["0"]`. The 1.0.0 addresses above still work as `moved` targets: `modules/endpoints` carries its own `moved` blocks from them, and Terraform chains the two moves (verified with `terraform plan`: both show as moved, `0 to add, 0 to change, 0 to destroy`). The rule's `Name` tag becomes `<name>-interface-endpoints-0` (from `...-https-0`) in place.
+
 Ready to paste into your root configuration. Repeat the interface and gateway endpoint lines for every service suffix you declared.
 
 ```hcl

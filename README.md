@@ -74,7 +74,7 @@ Data at rest
 
 Network
 
-- `module.endpoints` creates one security group that admits HTTPS only from `vpc_cidr`, shared by every interface endpoint; gateway endpoints attach to policy-free route tables you name. No public IP, no internet gateway, no NAT gateway is created here.
+- `module.endpoints` creates one security group that admits HTTPS only from `vpc_cidr`, shared by every interface endpoint; gateway endpoints attach to policy-free route tables you name. `modules/endpoints` provisions that group and its ingress rule through `aws.modules.security-group`, and this module sets its `create_security_group = true`, so the group exists (and `endpoint_security_group_id` is set) even when no interface endpoint is declared. No public IP, no internet gateway, no NAT gateway is created here.
 - The module performs no data-source reads beyond identity and region resolution (`aws_caller_identity`, `aws_partition`, and `aws_region` only when `region` is not supplied); every network identifier (`vpc_id`, subnet and route table IDs) is a caller-supplied input.
 
 Registry and session table
@@ -104,7 +104,7 @@ Not created here
 ## Partition support
 
 - Every ARN the module builds (the key policy's root principal and the CloudWatch Logs encryption-context ARNs) and the CloudWatch Logs service principal (`logs.<region>.<dns suffix>`) are derived from the `aws_partition` data source, so the key policy is correct in `aws`, `aws-us-gov`, and `aws-cn`.
-- VPC endpoint service names are always built as `com.amazonaws.<region>.<suffix>`. That is correct in `aws` and `aws-us-gov`. In `aws-cn` some services use `cn.com.amazonaws.<region>.<suffix>` instead, and the composed `aws.modules.vpc//modules/endpoints` (v1.0.1) accepts only `com.amazonaws.*` service names, so in `aws-cn` declare only the endpoint suffixes whose service name starts with `com.amazonaws` (check `aws ec2 describe-vpc-endpoint-services`), and create any others outside this module.
+- VPC endpoint service names are always built as `com.amazonaws.<region>.<suffix>`. That is correct in `aws` and `aws-us-gov`. In `aws-cn` some services use `cn.com.amazonaws.<region>.<suffix>` instead, and the composed `aws.modules.vpc//modules/endpoints` accepts only `com.amazonaws.*` service names, so in `aws-cn` declare only the endpoint suffixes whose service name starts with `com.amazonaws` (check `aws ec2 describe-vpc-endpoint-services`), and create any others outside this module.
 - The DynamoDB and ECR service principals are written as `dynamodb.amazonaws.com` and `ecr.amazonaws.com` and are not varied by partition. Callers' own IAM principals reach the key through the account-root statement in every partition, so this does not block use of the table or registry.
 
 ## Testing
@@ -182,7 +182,7 @@ Apache-2.0. See [LICENSE](LICENSE).
 
 | Name | Source | Version |
 |------|--------|---------|
-| <a name="module_endpoints"></a> [endpoints](#module\_endpoints) | git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints | abfd14dfdc288a8fbaa23083a0fa6ee666e7d4f6 |
+| <a name="module_endpoints"></a> [endpoints](#module\_endpoints) | git::https://github.com/hatan4ik/aws.modules.vpc.git//modules/endpoints | 969e78e0653ec54a6985fd93f9ca23345bd0b84a |
 | <a name="module_registry"></a> [registry](#module\_registry) | ./modules/registry | n/a |
 | <a name="module_session_store"></a> [session\_store](#module\_session\_store) | ./modules/session-store | n/a |
 
